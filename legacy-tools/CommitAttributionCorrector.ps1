@@ -1,0 +1,227 @@
+# Git Commit Attribution Corrector
+# Uses both Chat History and LLM Commit Analysis to correct git authorship
+# Specifically for attributing AI-assisted commits to Claude Sonnet 4
+
+param(
+    [Parameter(Mandatory = $false)]
+    [switch]$DryRun = $true,
+    
+    [Parameter(Mandatory = $false)]
+    [string]$AIAuthor = "anthropic_Claude (copilot/claude-sonnet-4)",
+    
+    [Parameter(Mandatory = $false)]
+    [string]$AIEmail = "admin+copilot.claude-sonnet-4@emblemprojects.com",
+    
+    [Parameter(Mandatory = $false)]
+    [int]$MinAIScore = 5
+)
+
+Write-Host "=== Git Commit Attribution Corrector ===" -ForegroundColor Green
+Write-Host "Using AI Author: $AIAuthor" -ForegroundColor Cyan
+Write-Host "Using AI Email: $AIEmail" -ForegroundColor Cyan
+
+# Function to analyze and correct commits
+function Correct-CommitAttribution {
+    param(
+        [string]$LLMAnalysisFile = "github-copilot-model-analysis.json",
+        [bool]$IsDryRun = $true
+    )
+    
+    if (-not (Test-Path $LLMAnalysisFile)) {
+        Write-Error "LLM analysis file not found: $LLMAnalysisFile"
+        Write-Host "Please run: .\tools\LLMCommitIdentifier.ps1 -OutputPath `"$LLMAnalysisFile`"" -ForegroundColor Yellow
+        return
+    }
+    
+    try {
+        $analysis = Get-Content $LLMAnalysisFile -Raw | ConvertFrom-Json
+        $commits = $analysis.Report.AllCommits
+        
+        Write-Host "Found $($commits.Count) commits to analyze" -ForegroundColor Yellow
+        
+        $aiCommits = @()
+        $humanCommits = @()
+        
+        foreach ($commit in $commits) {
+            if ($commit.AIScore -ge $MinAIScore -or $commit.AILikelihood -in @("High", "Very High")) {
+                $aiCommits += $commit
+                Write-Host "✅ AI-Assisted: $($commit.ShortHash) (Score: $($commit.AIScore))" -ForegroundColor Green
+            }
+            else {
+                $humanCommits += $commit
+                Write-Host "👤 Human: $($commit.ShortHash) (Score: $($commit.AIScore))" -ForegroundColor White
+            }
+        }
+        
+        Write-Host ""
+        Write-Host "=== ATTRIBUTION SUMMARY ===" -ForegroundColor Yellow
+        Write-Host "AI-Assisted Commits: $($aiCommits.Count)" -ForegroundColor Green
+        Write-Host "Human Commits: $($humanCommits.Count)" -ForegroundColor White
+        Write-Host ""
+        
+        if ($aiCommits.Count -gt 0) {
+            Write-Host "=== AI COMMITS TO CORRECT ===" -ForegroundColor Yellow
+            
+            foreach ($commit in $aiCommits) {
+                Write-Host "Commit: $($commit.ShortHash)" -ForegroundColor Cyan
+                Write-Host "  Current Author: $($commit.Author)" -ForegroundColor White
+                Write-Host "  Should be: $AIAuthor" -ForegroundColor Green
+                Write-Host "  AI Score: $($commit.AIScore)" -ForegroundColor Yellow
+                Write-Host "  Likelihood: $($commit.AILikelihood)" -ForegroundColor Yellow
+                Write-Host "  Message: $($commit.Message)" -ForegroundColor Gray
+                
+                if ($IsDryRun) {
+                    Write-Host "  [DRY RUN] Command: git commit --amend --author=`"$AIAuthor <$AIEmail>`" $($commit.Hash)" -ForegroundColor Magenta
+                }
+                else {
+                    Write-Host "  Executing attribution correction..." -ForegroundColor Red
+                    try {
+                        # For the most recent commit, we can use --amend
+                        if ($commit.Hash -eq (git rev-parse HEAD)) {
+                            git commit --amend --author="$AIAuthor <$AIEmail>" --no-edit
+                            Write-Host "  ✅ Updated latest commit attribution" -ForegroundColor Green
+                        }
+                        else {
+                            # For older commits, we'd need interactive rebase (more complex)
+                            Write-Host "  ⚠️ Older commit - would require interactive rebase" -ForegroundColor Yellow
+                            Write-Host "  Command: git rebase -i $($commit.Hash)~1" -ForegroundColor Gray
+                        }
+                    }
+                    catch {
+                        Write-Error "Failed to update commit $($commit.ShortHash): $($_.Exception.Message)"
+                    }
+                }
+                Write-Host ""
+            }
+        }
+        
+        return @{
+            AICommits     = $aiCommits
+            HumanCommits  = $humanCommits
+            TotalAnalyzed = $commits.Count
+        }
+    }
+    catch {
+        Write-Error "Failed to process LLM analysis: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+# Function to generate git filter-branch script for bulk corrections
+function Generate-FilterBranchScript {
+    param([array]$AICommits)
+    
+    $scriptPath = "fix-ai-attribution.sh"
+    
+    $script = @"
+#!/bin/bash
+# Git filter-branch script to correct AI commit attribution
+# Generated by Git Commit Attribution Corrector
+
+echo "=== Correcting AI Commit Attribution ==="
+echo "AI Author: $AIAuthor"
+echo "AI Email: $AIEmail"
+echo ""
+
+git filter-branch --env-filter '
+"@
+    
+    foreach ($commit in $AICommits) {
+        $script += @"
+
+if [ `$GIT_COMMIT = "$($commit.Hash)" ]; then
+    echo "Correcting commit $($commit.ShortHash): AI-assisted (Score: $($commit.AIScore))"
+    export GIT_AUTHOR_NAME="$AIAuthor"
+    export GIT_AUTHOR_EMAIL="$AIEmail"
+    export GIT_COMMITTER_NAME="$AIAuthor" 
+    export GIT_COMMITTER_EMAIL="$AIEmail"
+fi
+"@
+    }
+    
+    $script += @"
+
+' --tag-name-filter cat -- --branches --tags
+
+echo ""
+echo "Attribution correction complete!"
+echo "WARNING: This has rewritten git history!"
+echo "Use 'git push --force' to update remote repository"
+"@
+    
+    $script | Out-File -FilePath $scriptPath -Encoding UTF8
+    Write-Host "Generated filter-branch script: $scriptPath" -ForegroundColor Green
+    Write-Host "To execute: bash $scriptPath" -ForegroundColor Yellow
+    Write-Host "⚠️ WARNING: This will rewrite git history!" -ForegroundColor Red
+}
+
+# Function to create commit message templates for AI attribution
+function Generate-CommitMessageTemplates {
+    $templatePath = "ai-commit-templates.txt"
+    
+    $templates = @"
+# AI Commit Message Templates for Claude Sonnet 4 Attribution
+
+# Template 1: Feature Implementation
+feat(ai): Implement [feature] with Claude Sonnet 4 assistance
+Co-authored-by: $AIAuthor <$AIEmail>
+
+# Template 2: Documentation
+docs(ai): Add comprehensive documentation via Claude Sonnet 4
+Co-authored-by: $AIAuthor <$AIEmail>
+
+# Template 3: Configuration Setup  
+chore(ai): Configure [component] with Claude Sonnet 4 guidance
+Co-authored-by: $AIAuthor <$AIEmail>
+
+# Template 4: Code Enhancement
+refactor(ai): Enhance [component] structure with Claude Sonnet 4
+Co-authored-by: $AIAuthor <$AIEmail>
+
+# Template 5: Bug Fix
+fix(ai): Resolve [issue] with Claude Sonnet 4 analysis
+Co-authored-by: $AIAuthor <$AIEmail>
+
+# Usage Examples:
+# git commit -m "feat(ai): Implement WhatsApp receipt processing with Claude Sonnet 4 assistance" -m "Co-authored-by: $AIAuthor <$AIEmail>"
+"@
+    
+    $templates | Out-File -FilePath $templatePath -Encoding UTF8
+    Write-Host "Generated commit message templates: $templatePath" -ForegroundColor Green
+}
+
+# Main execution
+Write-Host "Analyzing commits for AI attribution correction..." -ForegroundColor Yellow
+
+# Run the analysis
+$result = Correct-CommitAttribution -IsDryRun $DryRun
+
+if ($result -and $result.AICommits.Count -gt 0) {
+    Write-Host ""
+    Write-Host "=== CORRECTION OPTIONS ===" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "1. DRY RUN COMPLETE - Review the suggested changes above" -ForegroundColor Cyan
+    Write-Host "2. To apply changes to latest commit only:" -ForegroundColor Cyan
+    Write-Host "   .\tools\CommitAttributionCorrector.ps1 -DryRun:`$false" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "3. To generate bulk correction script for all AI commits:" -ForegroundColor Cyan
+    Write-Host "   .\tools\CommitAttributionCorrector.ps1 -GenerateScript" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "4. For future commits, use AI-attributed author:" -ForegroundColor Cyan
+    Write-Host "   git config user.name `"$AIAuthor`"" -ForegroundColor Gray
+    Write-Host "   git config user.email `"$AIEmail`"" -ForegroundColor Gray
+    Write-Host ""
+    
+    # Generate helper files
+    Generate-FilterBranchScript -AICommits $result.AICommits
+    Generate-CommitMessageTemplates
+    
+    Write-Host "⚠️  IMPORTANT: Correcting commit attribution will rewrite git history!" -ForegroundColor Red
+    Write-Host "   Only do this on branches that haven't been shared publicly." -ForegroundColor Red
+}
+else {
+    Write-Host "No AI-assisted commits found that need attribution correction." -ForegroundColor Green
+}
+
+Write-Host ""
+Write-Host "Commit attribution analysis complete!" -ForegroundColor Green

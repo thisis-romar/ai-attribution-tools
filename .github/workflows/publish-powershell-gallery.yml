@@ -1,0 +1,53 @@
+name: Publish to PowerShell Gallery
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish'
+        required: true
+        default: '1.1.0'
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup PowerShell
+      shell: pwsh
+      run: |
+        Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+
+    - name: Test Module Manifest
+      shell: pwsh
+      run: |
+        $manifest = Test-ModuleManifest -Path ./AIAttributionTools.psd1
+        Write-Host "Module: $($manifest.Name) v$($manifest.Version)"
+        Write-Host "Description: $($manifest.Description)"
+
+    - name: Publish to PowerShell Gallery
+      shell: pwsh
+      env:
+        PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+      run: |
+        if (-not $env:PSGALLERY_API_KEY) {
+          Write-Error "PSGALLERY_API_KEY secret is not configured"
+          exit 1
+        }
+        
+        Write-Host "Publishing AIAttributionTools to PowerShell Gallery..."
+        Publish-Module -Path . -Repository PSGallery -NuGetApiKey $env:PSGALLERY_API_KEY -Verbose
+        
+        Write-Host "Successfully published to PowerShell Gallery!"
+
+    - name: Verify Publication
+      shell: pwsh
+      run: |
+        Start-Sleep -Seconds 30
+        $published = Find-Module AIAttributionTools -Repository PSGallery
+        Write-Host "Published version: $($published.Version)"
+        Write-Host "Repository URI: $($published.ProjectUri)"

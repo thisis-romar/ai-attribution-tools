@@ -12,10 +12,10 @@
     GUID = 'f8c4d8b2-6e3a-4b5f-9c7d-2a1e8f4b9d6c'
 
     # Author of this module
-    Author = 'Emblem.iO Team'
+    Author = 'romar-j'
 
     # Company or vendor of this module
-    CompanyName = 'Emblem.iO'
+    CompanyName = 'emblem-projects-inc'
 
     # Copyright statement for this module
     Copyright = '(c) 2025 Emblem.iO. All rights reserved.'

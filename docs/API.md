@@ -184,8 +184,9 @@ try {
 - [Configuration Guide](Configuration.md)
 - [Usage Examples](../examples/)
 - [PowerShell Gallery](https://www.powershellgallery.com/packages/AIAttributionTools)
-- [GitHub Repository](https://github.com/thisis-romar/emblem.io-whatsapp-receipts)
+- [GitHub Repository](https://github.com/thisis-romar/ai-attribution-tools)
 
 ---
 
-**Questions or Issues?** Please report them on our [GitHub Issues](https://github.com/thisis-romar/emblem.io-whatsapp-receipts/issues) page.
+**Questions or Issues?** Please report them on our [GitHub Issues](https://github.com/thisis-romar/ai-attribution-tools/issues) page.
+

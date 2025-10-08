@@ -284,8 +284,9 @@ $message = "Weekly AI Usage: $($analysis.AIPercentage)% of commits"
 - [API Reference](API.md)
 - [Usage Examples](../examples/)
 - [PowerShell Gallery](https://www.powershellgallery.com/packages/AIAttributionTools)
-- [GitHub Repository](https://github.com/thisis-romar/emblem.io-whatsapp-receipts)
+- [GitHub Repository](https://github.com/thisis-romar/ai-attribution-tools)
 
 ---
 
-**Need help with configuration?** Open an issue on our [GitHub repository](https://github.com/thisis-romar/emblem.io-whatsapp-receipts/issues).
+**Need help with configuration?** Open an issue on our [GitHub repository](https://github.com/thisis-romar/ai-attribution-tools/issues).
+

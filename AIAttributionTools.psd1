@@ -88,7 +88,7 @@
 - Comprehensive documentation
 - Installation via `Install-Module AIAttributionTools`
 
-For detailed usage: https://github.com/thisis-romar/ai-attribution-tools/blob/main/AIAttributionTools/README.md
+For detailed usage: https://github.com/thisis-romar/ai-attribution-tools/blob/main/README.md
 "@
 
             # Prerelease string (if this is a prerelease version)
@@ -108,4 +108,6 @@ For detailed usage: https://github.com/thisis-romar/ai-attribution-tools/blob/ma
     # Default prefix for commands exported from this module
     DefaultCommandPrefix = ''
 }
+
+
 
